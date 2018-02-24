@@ -1,15 +1,4 @@
-#!/bin/sh
-
-start_dir=`pwd`
-
-abort()
-{
-  cd $start_dir
-  exit 1
-}
-
-trap 'abort' 0
-set -e
+#!/bin/bash
 
 make clean
 test -d package-test || mkdir package-test
@@ -21,23 +10,46 @@ mv myhtmlex-*.tar package-test/myhtmlex-local/
 cd package-test/myhtmlex-local
 tar -xf *.tar
 tar -xzf *.tar.gz
-cd ..
-mix new myhtmlex_pkg_test
-cd myhtmlex_pkg_test
 
-# Default operation
-sed -i -e 's/^.*dep_from_hexpm.*$/      {:myhtmlex, path: "..\/myhtmlex-local"}/' mix.exs
+cd ..
+rm -rf foo
+mkdir foo
+cd foo
+cat > mix.exs <<EOF
+defmodule Foo.MixProject do
+  use Mix.Project
+
+  def project() do
+    [
+      app: :foo,
+      version: "1.0.0",
+      package: [
+        links: %{},
+        licenses: ["Apache 2.0"],
+        description: "test",
+        maintainers: ["me"]
+      ],
+      deps: deps()
+    ]
+  end
+
+  defp deps do
+    [
+      {:myhtmlex, path: "../myhtmlex-local"}
+    ]
+  end
+end
+EOF
+
 mix deps.get
+mix compile
+
+mix run -e 'IO.inspect {"html", [], [{"head", [], []}, {"body", [], ["foo"]}]} = Myhtmlex.decode("foo")'
+
+# switch Nif operation
+sed -i -e 's/^.*myhtmlex-local.*$/      {:myhtmlex, path: "..\/myhtmlex-local", runtime: false}/' mix.exs
+
 mix compile
 mix run -e 'IO.inspect {"html", [], [{"head", [], []}, {"body", [], ["foo"]}]} = Myhtmlex.decode("foo")'
 
-# Nif operation
-sed -i -e 's/^.*myhtmlex-local.*$/      {:myhtmlex, path: "..\/myhtmlex-local", runtime: false}/' mix.exs
-echo "config :myhtmlex, mode: Myhtmlex.Nif" >> config/config.exs
-mix run -e 'IO.inspect {"html", [], [{"head", [], []}, {"body", [], ["foo"]}]} = Myhtmlex.decode("foo")'
-
-trap : 0
-
-cd $start_dir
 echo "ok"
-
